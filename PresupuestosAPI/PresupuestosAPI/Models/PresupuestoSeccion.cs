@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PresupuestosAPI.Models
 {
@@ -12,6 +13,8 @@ namespace PresupuestosAPI.Models
         [Required]
         public string SectionType { get; set; }
         public int IdPresupuesto { get; set; }
+
+        [ForeignKey(nameof(IdPresupuesto))]
         public Presupuesto Presupuesto { get; set; }
 
     }

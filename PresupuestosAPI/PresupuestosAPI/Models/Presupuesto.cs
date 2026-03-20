@@ -1,5 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PresupuestosAPI.Models
 {
@@ -15,6 +16,8 @@ namespace PresupuestosAPI.Models
         public DateTime? FechaVencimiento { get; set; }
         public List<PresupuestoSeccion> Secciones { get; set; }
         public int IdCompany { get; set; }
+
+        [ForeignKey(nameof(IdCompany))]
         public Company Company { get; set; }
     }
 }

@@ -1,5 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PresupuestosAPI.Models
 {
@@ -14,6 +15,7 @@ namespace PresupuestosAPI.Models
         public string? ColorSecondary { get; set; }
         public List<Presupuesto> Presupuestos { get; set; }
         public int IdUser { get; set; }
+        [ForeignKey(nameof(IdUser))]
         public User User { get; set; }
     }
 }
