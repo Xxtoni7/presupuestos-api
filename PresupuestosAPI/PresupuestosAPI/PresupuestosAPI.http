@@ -1,6 +1,0 @@
-@PresupuestosAPI_HostAddress = http://localhost:5147
-
-GET {{PresupuestosAPI_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
