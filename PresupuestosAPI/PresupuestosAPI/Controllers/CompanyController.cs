@@ -4,7 +4,6 @@ using PresupuestosAPI.Services;
 
 namespace PresupuestosAPI.Controllers
 {
-
     [ApiController]
     [Route("api/[controller]")]
     public class CompanyController : ControllerBase

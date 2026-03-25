@@ -15,6 +15,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 //Registrar el servicio de la empresa
 builder.Services.AddScoped<CompanyService>();
+builder.Services.AddScoped<PresupuestoService>();
 
 
 var app = builder.Build();
