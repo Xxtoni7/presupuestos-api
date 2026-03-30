@@ -15,6 +15,13 @@ namespace PresupuestosAPI.Controllers
             _presupuestoService = presupuestoService;
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetAllPresupuestos()
+        {
+            var presupuestos = await _presupuestoService.GetAllPresupuestosAsync();
+            return Ok(presupuestos);
+        }
+
         [HttpGet("company/{companyId}")]
         public async Task<IActionResult> GetPresupuestosByCompanyId(int companyId)
         {
@@ -40,7 +47,7 @@ namespace PresupuestosAPI.Controllers
         }
 
         [HttpGet("search")]
-        public async Task<IActionResult> GetPresupuestosbyTitle([FromQuery] string title)
+        public async Task<IActionResult> GetPresupuestosByTitle([FromQuery] string title)
         {
             var presupuestos = await _presupuestoService.GetPresupuestosByTitleAsync(title);
             if (!presupuestos.Any())
@@ -76,7 +83,7 @@ namespace PresupuestosAPI.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePresupuesto(int id)
         {
-            var deletedPresupuesto = await _presupuestoService.DeletePresupuentoAsync(id);
+            var deletedPresupuesto = await _presupuestoService.DeletePresupuestoAsync(id);
             if (!deletedPresupuesto) 
             {
                 return NotFound();
