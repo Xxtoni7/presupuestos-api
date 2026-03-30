@@ -37,7 +37,7 @@ namespace PresupuestosAPI.Services
             return company;
         }
 
-        public async Task<Company> UpdateCompanyAsync(int id, Company updatedCompany)
+        public async Task<Company?> UpdateCompanyAsync(int id, Company updatedCompany)
         {
             var company = await _context.Companies.FindAsync(id);
             if (company == null)
@@ -49,6 +49,10 @@ namespace PresupuestosAPI.Services
             company.LogoUrl = updatedCompany.LogoUrl;
             company.ColorMain = updatedCompany.ColorMain;
             company.ColorSecondary = updatedCompany.ColorSecondary;
+            company.Phone = updatedCompany.Phone;
+            company.Email = updatedCompany.Email;
+            company.Address = updatedCompany.Address;
+            company.Industry = updatedCompany.Industry;
 
             await _context.SaveChangesAsync();
             return company;

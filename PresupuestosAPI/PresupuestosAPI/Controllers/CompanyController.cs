@@ -25,25 +25,25 @@ namespace PresupuestosAPI.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetCompanyById(int id)
         {
-            var companies = await _companyService.GetCompanyByIdAsync(id);
-            if (companies == null)
+            var company = await _companyService.GetCompanyByIdAsync(id);
+            if (company == null)
             {
                 return NotFound();
             }
 
-            return Ok(companies);
+            return Ok(company);
         }
 
         [HttpGet("search")]
         public async Task<IActionResult> GetCompanyByName([FromQuery] string Name)
         {
-            var companies = await _companyService.GetCompaniesByNameAsync(Name);
-            if (!companies.Any())
+            var company = await _companyService.GetCompaniesByNameAsync(Name);
+            if (!company.Any())
             {
                 return NotFound();
             }
 
-            return Ok(companies);
+            return Ok(company);
         }
 
         [HttpPost]
