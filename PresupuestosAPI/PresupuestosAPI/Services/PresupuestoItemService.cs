@@ -4,11 +4,11 @@ using PresupuestosAPI.Models;
 
 namespace PresupuestosAPI.Services
 {
-    public class ItemService
+    public class PresupuestoItemService
     {
         private readonly AppDbContext _context;
 
-        public ItemService(AppDbContext context) 
+        public PresupuestoItemService(AppDbContext context) 
         {
             _context = context;
         }
@@ -34,8 +34,9 @@ namespace PresupuestosAPI.Services
             if (presupuesto != null)
             {
                 presupuesto.Total = await _context.PresupuestoItems
-                    .Where(i => i.IdPresupuesto == item.IdPresupuesto)
-                    .SumAsync(i => i.Subtotal);
+                     .Where(i => i.IdPresupuesto == item.IdPresupuesto)
+                     .Select(i => (decimal?)i.Subtotal)
+                     .SumAsync() ?? 0;
                 await _context.SaveChangesAsync();
             }
             return item;
@@ -60,8 +61,9 @@ namespace PresupuestosAPI.Services
             if (presupuesto != null)
             {
                 presupuesto.Total = await _context.PresupuestoItems
-                    .Where(i => i.IdPresupuesto == existingItem.IdPresupuesto)
-                    .SumAsync(i => i.Subtotal);
+                     .Where(i => i.IdPresupuesto == item.IdPresupuesto)
+                     .Select(i => (decimal?)i.Subtotal)
+                     .SumAsync() ?? 0;
                 await _context.SaveChangesAsync();
             }
             return existingItem;
@@ -82,11 +84,11 @@ namespace PresupuestosAPI.Services
             {
                 presupuesto.Total = await _context.PresupuestoItems
                     .Where(i => i.IdPresupuesto == item.IdPresupuesto)
-                    .SumAsync(i => i.Subtotal);
+                    .Select(i => (decimal?)i.Subtotal)
+                    .SumAsync() ?? 0;
                 await _context.SaveChangesAsync();
             }
             return true;
         }
-
     }
 }
