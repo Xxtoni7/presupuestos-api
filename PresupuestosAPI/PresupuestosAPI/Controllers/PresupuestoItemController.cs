@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PresupuestosAPI.Models;
 using PresupuestosAPI.Services;
+using PresupuestosAPI.DTOs.PresupuestoItem;
 
 namespace PresupuestosAPI.Controllers
 {
@@ -37,9 +38,9 @@ namespace PresupuestosAPI.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreateItem([FromBody] PresupuestoItem item)
+        public async Task<IActionResult> CreateItem([FromBody] CreatePresupuestoItemDto dto)
         {
-            var createdItem = await _itemService.CreateItemAsync(item);
+            var createdItem = await _itemService.CreateItemAsync(dto);
             return CreatedAtAction(
                 nameof(GetItemById),
                 new { id = createdItem.IdItem },
@@ -48,9 +49,9 @@ namespace PresupuestosAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateItem(int id, [FromBody] PresupuestoItem item)
+        public async Task<IActionResult> UpdateItem(int id, [FromBody] UpdatePresupuestoItemDto dto)
         {
-            var updatedItem = await _itemService.UpdateItemAsync(id, item);
+            var updatedItem = await _itemService.UpdateItemAsync(id, dto);
             if (updatedItem == null)
             {
                 return NotFound();
