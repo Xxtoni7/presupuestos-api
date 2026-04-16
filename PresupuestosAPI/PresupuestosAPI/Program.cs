@@ -17,7 +17,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<CompanyService>();
 builder.Services.AddScoped<PresupuestoService>();
 builder.Services.AddScoped<PresupuestoItemService>();
-//builder.Services.AddScoped<PresupuestoSeccionService>();
+builder.Services.AddScoped<UploadService>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 
 var app = builder.Build();
@@ -30,6 +40,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+
+app.UseCors("AllowFrontend");
 
 app.UseAuthorization();
 
