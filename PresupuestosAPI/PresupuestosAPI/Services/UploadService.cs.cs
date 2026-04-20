@@ -85,9 +85,9 @@ namespace PresupuestosAPI.Services
                     File.Delete(oldFilePath);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Por ahora no rompemos el flujo si falla el borrado del logo viejo
+                throw new Exception($"Error al borrar el logo anterior: {ex.Message}");
             }
         }
     }

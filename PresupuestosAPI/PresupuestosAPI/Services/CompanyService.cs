@@ -2,16 +2,19 @@
 using PresupuestosAPI.Data;
 using PresupuestosAPI.DTOs.Company;
 using PresupuestosAPI.Models;
+using Microsoft.AspNetCore.Hosting;
 
 namespace PresupuestosAPI.Services
 {
     public class CompanyService
     {
         private readonly AppDbContext _context;
+        private readonly IWebHostEnvironment _environment;
 
-        public CompanyService(AppDbContext context)
+        public CompanyService(AppDbContext context, IWebHostEnvironment environment)
         {
             _context = context;
+            _environment = environment;
         }
 
         private static CompanyResponseDto MapToCompanyResponseDto(Company company)
@@ -101,6 +104,24 @@ namespace PresupuestosAPI.Services
             if (company == null)
             {
                 return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(company.LogoUrl))
+            {
+                var webRootPath = _environment.WebRootPath;
+
+                if (string.IsNullOrWhiteSpace(webRootPath))
+                {
+                    webRootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
+                }
+
+                var relativePath = company.LogoUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+                var logoPath = Path.Combine(webRootPath, relativePath);
+
+                if (File.Exists(logoPath))
+                {
+                    File.Delete(logoPath);
+                }
             }
 
             _context.Companies.Remove(company);
