@@ -41,9 +41,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseStaticFiles();
-
 app.UseCors("AllowFrontend");
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "http://localhost:5173";
+        ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
+        ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
+    }
+});
 
 app.UseAuthorization();
 
