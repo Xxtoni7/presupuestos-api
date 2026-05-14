@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PresupuestosAPI.Data;
+using Microsoft.Extensions.FileProviders;
 using PresupuestosAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,8 +44,19 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
 
+app.UseStaticFiles();
+
+var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
+
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
 app.UseStaticFiles(new StaticFileOptions
 {
+    FileProvider = new PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads",
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
