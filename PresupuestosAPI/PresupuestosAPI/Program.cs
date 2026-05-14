@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using PresupuestosAPI.Data;
 using PresupuestosAPI.Services;
 
@@ -43,11 +44,16 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
 
+app.UseStaticFiles();
+
 app.UseStaticFiles(new StaticFileOptions
 {
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(builder.Environment.ContentRootPath, "wwwroot")),
+    RequestPath = "",
     OnPrepareResponse = ctx =>
     {
-        ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "http://localhost:5173";
+        ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
         ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, OPTIONS";
         ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
     }
