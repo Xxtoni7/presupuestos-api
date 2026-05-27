@@ -9,11 +9,12 @@ namespace PresupuestosAPI.Services
     {
         private readonly AppDbContext _context;
         private readonly CloudinaryService _cloudinaryService;
-
-        public CompanyService(AppDbContext context, CloudinaryService cloudinaryService)
+        private readonly CurrentUserService _currentUserService;
+        public CompanyService(AppDbContext context, CloudinaryService cloudinaryService, CurrentUserService currentUserService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
+            _currentUserService = currentUserService;
         }
 
         private static CompanyResponseDto MapToCompanyResponseDto(Company company)
@@ -28,14 +29,16 @@ namespace PresupuestosAPI.Services
                 Phone = company.Phone,
                 Email = company.Email,
                 Address = company.Address,
-                Industry = company.Industry,
-                IdUser = company.IdUser
+                Industry = company.Industry
             };
         }
 
         public async Task<List<CompanyResponseDto>> GetAllCompaniesAsync()
         {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
             var companies = await _context.Companies
+                .Where(c => c.WorkspaceId == workspaceId)
                 .OrderByDescending(c => c.IdCompany)
                 .ToListAsync();
 
@@ -44,20 +47,20 @@ namespace PresupuestosAPI.Services
 
         public async Task<CompanyResponseDto?> GetCompanyByIdAsync(int id)
         {
-            var company = await _context.Companies.FindAsync(id);
+            var workspaceId = _currentUserService.GetWorkspaceId();
 
-            if (company == null)
-            {
-                return null;
-            }
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.IdCompany == id && c.WorkspaceId == workspaceId);
 
-            return MapToCompanyResponseDto(company);
+            return company == null ? null : MapToCompanyResponseDto(company);
         }
 
         public async Task<List<CompanyResponseDto>> GetCompaniesByNameAsync(string name)
         {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
             var companies = await _context.Companies
-                .Where(c => c.Name.Contains(name))
+                .Where(c => c.WorkspaceId == workspaceId && c.Name.Contains(name))
                 .OrderByDescending(c => c.IdCompany)
                 .ToListAsync();
 
@@ -66,6 +69,8 @@ namespace PresupuestosAPI.Services
 
         public async Task<CompanyResponseDto> CreateCompanyAsync(CreateCompanyDto dto)
         {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
             var company = new Company
             {
                 Name = dto.Name,
@@ -76,7 +81,7 @@ namespace PresupuestosAPI.Services
                 Email = dto.Email,
                 Address = dto.Address,
                 Industry = dto.Industry,
-                IdUser = dto.IdUser
+                WorkspaceId = workspaceId
             };
 
             _context.Companies.Add(company);
@@ -87,7 +92,10 @@ namespace PresupuestosAPI.Services
 
         public async Task<CompanyResponseDto?> UpdateCompanyAsync(int id, UpdateCompanyDto dto)
         {
-            var company = await _context.Companies.FindAsync(id);
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.IdCompany == id && c.WorkspaceId == workspaceId);
 
             if (company == null)
             {
@@ -110,7 +118,10 @@ namespace PresupuestosAPI.Services
 
         public async Task<bool> DeleteCompanyAsync(int id)
         {
-            var company = await _context.Companies.FindAsync(id);
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.IdCompany == id && c.WorkspaceId == workspaceId);
 
             if (company == null)
             {

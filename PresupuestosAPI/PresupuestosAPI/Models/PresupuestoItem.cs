@@ -7,6 +7,7 @@ namespace PresupuestosAPI.Models
     {
         [Key]
         public int IdItem { get; set; }
+        [MaxLength(300)]
         public string? Description { get; set; }
         public decimal Materials { get; set; }
         public decimal Labor { get; set; }
