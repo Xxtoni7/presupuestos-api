@@ -1,11 +1,12 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using PresupuestosAPI.Data;
+using PresupuestosAPI.Models;
 using PresupuestosAPI.Services;
 using PresupuestosAPI.Settings;
-using Microsoft.AspNetCore.Identity;
-using PresupuestosAPI.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 
@@ -14,7 +15,29 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Pegá acá el access token JWT. No hace falta escribir Bearer."
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecuritySchemeReference("Bearer", document),
+            new List<string>()
+        }
+    });
+});
+
+
 builder.Services.Configure<CloudinarySettings>(
     builder.Configuration.GetSection("CloudinarySettings")
 );
@@ -79,6 +102,7 @@ builder.Services.AddScoped<CloudinaryService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserService>();
+builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddCors(options =>
 {
