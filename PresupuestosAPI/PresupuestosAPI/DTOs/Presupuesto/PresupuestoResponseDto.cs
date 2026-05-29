@@ -3,8 +3,8 @@
     public class PresupuestoResponseDto
     {
         public int IdPresupuesto { get; set; }
-        public string Title { get; set; }
-        public string BudgetNumber { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string BudgetNumber { get; set; } = string.Empty;
         public string? ClientName { get; set; }
         public DateTime FechaPresupuesto { get; set; }
         public DateTime? FechaVencimiento { get; set; }

@@ -9,14 +9,14 @@ namespace PresupuestosAPI.Models
         [Key]
         public int IdPresupuesto { get; set; }
         [Required]
-        [MaxLength(100)]
-        public string Title { get; set; }
+        [MaxLength(60)]
+        public string Title { get; set; } = string.Empty;
         public string? BudgetNumber { get; set; }
-        [MaxLength(100)]
+        [MaxLength(80)]
         public string? ClientName { get; set; }
         public DateTime FechaPresupuesto { get; set; }
         public DateTime? FechaVencimiento { get; set; }
-        [MaxLength(100)]
+        [MaxLength(80)]
         public string? WorkAddress { get; set; }
         public string? JobDescription { get; set; }
         public string? EstimatedTime { get; set; }

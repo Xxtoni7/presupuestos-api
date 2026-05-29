@@ -9,17 +9,17 @@ namespace PresupuestosAPI.Models
         [Key]
         public int IdCompany{ get; set; }
         [Required]
-        [MaxLength(120)]
+        [MaxLength(60)]
         public string Name { get; set; } = string.Empty;
         public string? LogoUrl { get; set; }
         public string? ColorMain { get; set; }
         public string? ColorSecondary { get; set; }
-        [MaxLength(30)]
+        [MaxLength(80)]
         public string? Phone { get;set; }
-        [MaxLength(150)]
+        [MaxLength(80)]
         [EmailAddress]
         public string? Email { get; set; }
-        [MaxLength(200)]
+        [MaxLength(80)]
         public string? Address { get; set; }
         public string? Industry { get; set; }
 

@@ -1,11 +1,17 @@
-﻿namespace PresupuestosAPI.DTOs.Presupuesto
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace PresupuestosAPI.DTOs.Presupuesto
 {
     public class CreatePresupuestoDto
     {
-        public string Title { get; set; }
+        [Required]
+        [MaxLength(60)]
+        public string Title { get; set; } = string.Empty;
+        [MaxLength(80)]
         public string? ClientName { get; set; }
         public DateTime FechaPresupuesto { get; set; }
         public DateTime? FechaVencimiento { get; set; }
+        [MaxLength(80)]
         public string? WorkAddress { get; set; }
         public string? JobDescription { get; set; }
         public string? EstimatedTime { get; set; }
