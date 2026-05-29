@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PresupuestosAPI.Services;
 using PresupuestosAPI.DTOs.Company;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PresupuestosAPI.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class CompanyController : ControllerBase
     {

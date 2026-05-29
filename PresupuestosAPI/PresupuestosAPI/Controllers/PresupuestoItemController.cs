@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using PresupuestosAPI.Services;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PresupuestosAPI.DTOs.PresupuestoItem;
+using PresupuestosAPI.Services;
 
 namespace PresupuestosAPI.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class PresupuestoItemController : ControllerBase
     {
@@ -39,12 +41,20 @@ namespace PresupuestosAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateItem([FromBody] CreatePresupuestoItemDto dto)
         {
-            var createdItem = await _itemService.CreateItemAsync(dto);
-            return CreatedAtAction(
-                nameof(GetItemById),
-                new { id = createdItem.IdItem },
-                createdItem
-            );
+            try
+            {
+                var createdItem = await _itemService.CreateItemAsync(dto);
+
+                return CreatedAtAction(
+                    nameof(GetItemById),
+                    new { id = createdItem.IdItem },
+                    createdItem
+                );
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return NotFound(new { message = "Presupuesto no encontrado." });
+            }
         }
 
         [HttpPut("{id}")]

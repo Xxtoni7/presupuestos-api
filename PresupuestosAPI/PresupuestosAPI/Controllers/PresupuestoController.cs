@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using PresupuestosAPI.Services;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PresupuestosAPI.DTOs.Presupuesto;
+using PresupuestosAPI.Services;
 
 namespace PresupuestosAPI.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class PresupuestoController : ControllerBase
     {
@@ -56,12 +58,20 @@ namespace PresupuestosAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePresupuesto([FromBody] CreatePresupuestoDto dto)
         {
-            var createdPresupuesto = await _presupuestoService.CreatePresupuestoAsync(dto);
-            return CreatedAtAction(
-                nameof(GetPresupuestoById),
-                new { id = createdPresupuesto.IdPresupuesto },
-                createdPresupuesto
-            );
+            try
+            {
+                var createdPresupuesto = await _presupuestoService.CreatePresupuestoAsync(dto);
+
+                return CreatedAtAction(
+                    nameof(GetPresupuestoById),
+                    new { id = createdPresupuesto.IdPresupuesto },
+                    createdPresupuesto
+                );
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return NotFound(new { message = "Empresa no encontrada." });
+            }
         }
 
         [HttpPut("{id}")]

@@ -8,9 +8,12 @@ namespace PresupuestosAPI.Services
     public class PresupuestoService
     {
         private readonly AppDbContext _context;
-        public PresupuestoService(AppDbContext context)
+        private readonly CurrentUserService _currentUserService;
+
+        public PresupuestoService(AppDbContext context, CurrentUserService currentUserService)
         {
             _context = context;
+            _currentUserService = currentUserService;
         }
 
         private static PresupuestoResponseDto MapToPresupuestoResponseDto(Presupuesto presupuesto)
@@ -35,15 +38,27 @@ namespace PresupuestosAPI.Services
 
         public async Task<List<PresupuestoResponseDto>> GetAllPresupuestosAsync()
         {
-            var presupuestos = await _context.Presupuestos.ToListAsync();
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var presupuestos = await _context.Presupuestos
+                .Include(p => p.Company)
+                .Where(p => p.Company != null && p.Company.WorkspaceId == workspaceId)
+                .OrderByDescending(p => p.FechaPresupuesto)
+                .ToListAsync();
 
             return presupuestos.Select(MapToPresupuestoResponseDto).ToList();
         }
 
         public async Task<List<PresupuestoResponseDto>> GetPresupuestosByCompanyIdAsync(int companyId)
         {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
             var presupuestos = await _context.Presupuestos
-                .Where(p => p.IdCompany == companyId)
+                .Include(p => p.Company)
+                .Where(p =>
+                    p.IdCompany == companyId &&
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId)
                 .OrderByDescending(p => p.FechaPresupuesto)
                 .ToListAsync();
 
@@ -52,19 +67,34 @@ namespace PresupuestosAPI.Services
 
         public async Task<PresupuestoResponseDto?> GetPresupuestoByIdAsync(int id)
         {
-            var p = await _context.Presupuestos.FindAsync(id);
-            if (p == null)
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var presupuesto = await _context.Presupuestos
+                .Include(p => p.Company)
+                .FirstOrDefaultAsync(p =>
+                    p.IdPresupuesto == id &&
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId);
+
+            if (presupuesto == null)
             {
                 return null;
             }
 
-            return MapToPresupuestoResponseDto(p);
+            return MapToPresupuestoResponseDto(presupuesto);
         }
 
         public async Task<List<PresupuestoResponseDto>> GetPresupuestosByTitleAsync(string title)
         {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
             var presupuestos = await _context.Presupuestos
-                .Where(p => p.Title.Contains(title))
+                .Include(p => p.Company)
+                .Where(p =>
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId &&
+                    p.Title.Contains(title))
+                .OrderByDescending(p => p.FechaPresupuesto)
                 .ToListAsync();
 
             return presupuestos.Select(MapToPresupuestoResponseDto).ToList();
@@ -72,6 +102,16 @@ namespace PresupuestosAPI.Services
 
         public async Task<PresupuestoResponseDto> CreatePresupuestoAsync(CreatePresupuestoDto dto)
         {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var companyExists = await _context.Companies
+                .AnyAsync(c => c.IdCompany == dto.IdCompany && c.WorkspaceId == workspaceId);
+
+            if (!companyExists)
+            {
+                throw new UnauthorizedAccessException("La empresa no existe o no pertenece al usuario.");
+            }
+
             var year = DateTime.Now.Year;
 
             var lastPresupuesto = await _context.Presupuestos
@@ -111,7 +151,15 @@ namespace PresupuestosAPI.Services
 
         public async Task<PresupuestoResponseDto?> UpdatePresupuestoAsync(int id, UpdatePresupuestoDto dto)
         {
-            var presupuesto = await _context.Presupuestos.FindAsync(id);
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var presupuesto = await _context.Presupuestos
+                .Include(p => p.Company)
+                .FirstOrDefaultAsync(p =>
+                    p.IdPresupuesto == id &&
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId);
+
             if (presupuesto == null)
             {
                 return null;
@@ -134,7 +182,15 @@ namespace PresupuestosAPI.Services
 
         public async Task<bool> DeletePresupuestoAsync(int id)
         {
-            var presupuesto = await _context.Presupuestos.FindAsync(id);
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var presupuesto = await _context.Presupuestos
+                .Include(p => p.Company)
+                .FirstOrDefaultAsync(p =>
+                    p.IdPresupuesto == id &&
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId);
+
             if (presupuesto == null)
             {
                 return false;
@@ -142,8 +198,8 @@ namespace PresupuestosAPI.Services
 
             _context.Presupuestos.Remove(presupuesto);
             await _context.SaveChangesAsync();
+
             return true;
         }
-
     }
 }
