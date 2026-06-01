@@ -2,6 +2,7 @@
 using PresupuestosAPI.Services;
 using PresupuestosAPI.DTOs.Company;
 using Microsoft.AspNetCore.Authorization;
+using PresupuestosAPI.Exceptions;
 
 namespace PresupuestosAPI.Controllers
 {
@@ -51,12 +52,20 @@ namespace PresupuestosAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateCompany([FromBody] CreateCompanyDto dto)
         {
-            var createdCompany = await _companyService.CreateCompanyAsync(dto);
-            return CreatedAtAction(
-                nameof(GetCompanyById),
-                new { Id = createdCompany.IdCompany },
-                createdCompany
-            );
+            try
+            {
+                var company = await _companyService.CreateCompanyAsync(dto);
+
+                return CreatedAtAction(
+                    nameof(GetCompanyById),
+                    new { id = company.IdCompany },
+                    company
+                );
+            }
+            catch (PlanLimitExceededException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
         }
 
         [HttpPut("{id}")]

@@ -10,11 +10,17 @@ namespace PresupuestosAPI.Services
         private readonly AppDbContext _context;
         private readonly CloudinaryService _cloudinaryService;
         private readonly CurrentUserService _currentUserService;
-        public CompanyService(AppDbContext context, CloudinaryService cloudinaryService, CurrentUserService currentUserService)
+        private readonly PlanLimitService _planLimitService;
+        public CompanyService(
+            AppDbContext context,
+            CloudinaryService cloudinaryService,
+            CurrentUserService currentUserService,
+            PlanLimitService planLimitService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
             _currentUserService = currentUserService;
+            _planLimitService = planLimitService;
         }
 
         private static CompanyResponseDto MapToCompanyResponseDto(Company company)
@@ -70,6 +76,8 @@ namespace PresupuestosAPI.Services
         public async Task<CompanyResponseDto> CreateCompanyAsync(CreateCompanyDto dto)
         {
             var workspaceId = _currentUserService.GetWorkspaceId();
+
+            await _planLimitService.EnsureCanCreateCompanyAsync();
 
             var company = new Company
             {

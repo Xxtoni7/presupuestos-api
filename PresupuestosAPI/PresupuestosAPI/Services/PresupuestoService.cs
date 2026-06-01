@@ -9,11 +9,13 @@ namespace PresupuestosAPI.Services
     {
         private readonly AppDbContext _context;
         private readonly CurrentUserService _currentUserService;
+        private readonly PlanLimitService _planLimitService;
 
-        public PresupuestoService(AppDbContext context, CurrentUserService currentUserService)
+        public PresupuestoService(AppDbContext context, CurrentUserService currentUserService, PlanLimitService planLimitService)
         {
             _context = context;
             _currentUserService = currentUserService;
+            _planLimitService = planLimitService;
         }
 
         private static PresupuestoResponseDto MapToPresupuestoResponseDto(Presupuesto presupuesto)
@@ -103,6 +105,8 @@ namespace PresupuestosAPI.Services
         public async Task<PresupuestoResponseDto> CreatePresupuestoAsync(CreatePresupuestoDto dto)
         {
             var workspaceId = _currentUserService.GetWorkspaceId();
+
+            await _planLimitService.EnsureCanCreatePresupuestoAsync();
 
             var companyExists = await _context.Companies
                 .AnyAsync(c => c.IdCompany == dto.IdCompany && c.WorkspaceId == workspaceId);

@@ -108,6 +108,7 @@ builder.Services.AddScoped<CloudinaryService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<PlanLimitService>();
 
 builder.Services.AddCors(options =>
 {

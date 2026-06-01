@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using PresupuestosAPI.DTOs.Presupuesto;
 using PresupuestosAPI.Services;
+using PresupuestosAPI.Exceptions;
 
 namespace PresupuestosAPI.Controllers
 {
@@ -67,6 +68,10 @@ namespace PresupuestosAPI.Controllers
                     new { id = createdPresupuesto.IdPresupuesto },
                     createdPresupuesto
                 );
+            }
+            catch (PlanLimitExceededException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
             }
             catch (UnauthorizedAccessException)
             {
