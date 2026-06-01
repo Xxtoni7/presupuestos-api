@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using PresupuestosAPI.Data;
 using PresupuestosAPI.Exceptions;
+using PresupuestosAPI.Models;
 
 namespace PresupuestosAPI.Services
 {
@@ -80,6 +81,81 @@ namespace PresupuestosAPI.Services
             }
         }
 
+        public async Task ConsumePdfExportAsync(int presupuestoId)
+        {
+            var workspaceId = _currentUserService.GetWorkspaceId();
 
+            var presupuestoExists = await _context.Presupuestos
+                .Include(p => p.Company)
+                .AnyAsync(p =>
+                    p.IdPresupuesto == presupuestoId &&
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId);
+
+            if (!presupuestoExists)
+            {
+                throw new UnauthorizedAccessException("Presupuesto no encontrado.");
+            }
+
+            var subscription = await _context.Subscriptions
+                .Include(s => s.Plan)
+                .FirstOrDefaultAsync(s =>
+                    s.WorkspaceId == workspaceId &&
+                    s.Status == "Active");
+
+            if (subscription == null || subscription.Plan == null)
+            {
+                throw new InvalidOperationException("No se encontró una suscripción activa.");
+            }
+
+            var plan = subscription.Plan;
+
+            if (plan.MaxPdfExports == -1 || plan.PdfExportLimitPeriod == "Unlimited")
+            {
+                return;
+            }
+
+            var usage = await _context.WorkspaceUsages
+                .FirstOrDefaultAsync(u => u.WorkspaceId == workspaceId);
+
+            if (usage == null)
+            {
+                usage = new WorkspaceUsage
+                {
+                    WorkspaceId = workspaceId,
+                    PdfExportsUsed = 0,
+                    PdfExportsPeriodStart = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.WorkspaceUsages.Add(usage);
+                await _context.SaveChangesAsync();
+            }
+
+            if (plan.PdfExportLimitPeriod == "Monthly")
+            {
+                var now = DateTime.UtcNow;
+                var periodStart = new DateTime(now.Year, now.Month, 1);
+                var periodEnd = periodStart.AddMonths(1);
+
+                if (usage.PdfExportsPeriodStart < periodStart)
+                {
+                    usage.PdfExportsUsed = 0;
+                    usage.PdfExportsPeriodStart = periodStart;
+                    usage.PdfExportsPeriodEnd = periodEnd;
+                    usage.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            if (usage.PdfExportsUsed >= plan.MaxPdfExports)
+            {
+                throw new PlanLimitExceededException("Alcanzaste el límite de exportaciones PDF de tu plan.");
+            }
+
+            usage.PdfExportsUsed += 1;
+            usage.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+        }
     }
 }

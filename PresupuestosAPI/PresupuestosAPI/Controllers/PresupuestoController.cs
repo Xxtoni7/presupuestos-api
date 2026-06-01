@@ -12,10 +12,31 @@ namespace PresupuestosAPI.Controllers
     public class PresupuestoController : ControllerBase
     {
         private readonly PresupuestoService _presupuestoService;
+        private readonly PlanLimitService _planLimitService;
 
-        public PresupuestoController(PresupuestoService presupuestoService)
+        public PresupuestoController(PresupuestoService presupuestoService, PlanLimitService planLimitService)
         {
             _presupuestoService = presupuestoService;
+            _planLimitService = planLimitService;
+        }
+
+        [HttpPost("{id}/export-pdf")]
+        public async Task<IActionResult> ExportPdf(int id)
+        {
+            try
+            {
+                await _planLimitService.ConsumePdfExportAsync(id);
+
+                return Ok(new { message = "Exportación PDF autorizada." });
+            }
+            catch (PlanLimitExceededException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return NotFound(new { message = "Presupuesto no encontrado." });
+            }
         }
 
         [HttpGet]
