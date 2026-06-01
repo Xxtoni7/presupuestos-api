@@ -37,9 +37,14 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-
+//Configurar Cloudinary
 builder.Services.Configure<CloudinarySettings>(
     builder.Configuration.GetSection("CloudinarySettings")
+);
+
+//Configurar Google Auth
+builder.Services.Configure<GoogleAuthSettings>(
+    builder.Configuration.GetSection("GoogleAuthSettings")
 );
 
 //Configurar la cadena de conexión a la base de datos

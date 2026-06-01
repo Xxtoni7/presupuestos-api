@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using PresupuestosAPI.DTOs.Auth;
+using Google.Apis.Auth;
 
 namespace PresupuestosAPI.Services
 {
@@ -20,18 +21,22 @@ namespace PresupuestosAPI.Services
         private readonly AppDbContext _context;
         private readonly JwtSettings _jwtSettings;
         private readonly CurrentUserService _currentUserService;
+        private readonly GoogleAuthSettings _googleAuthSettings;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             AppDbContext context,
             IOptions<JwtSettings> jwtOptions,
-            CurrentUserService currentUserService)
+            IOptions<GoogleAuthSettings> googleAuthOptions,
+            CurrentUserService currentUserService
+            )
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _context = context;
             _jwtSettings = jwtOptions.Value;
+            _googleAuthSettings = googleAuthOptions.Value;
             _currentUserService = currentUserService;
         }
 
@@ -67,6 +72,51 @@ namespace PresupuestosAPI.Services
         {
             var randomBytes = RandomNumberGenerator.GetBytes(64);
             return Convert.ToBase64String(randomBytes);
+        }
+
+        private async Task<(Workspace Workspace, Plan Plan)> CreateInitialSaasSetupAsync(ApplicationUser user, string email)
+        {
+            var freePlan = await _context.Plans
+                .FirstOrDefaultAsync(p => p.Name == "Free" && p.IsActive);
+
+            if (freePlan == null)
+            {
+                throw new InvalidOperationException("El plan Free no está configurado.");
+            }
+
+            var workspace = new Workspace
+            {
+                Name = $"Workspace de {email}",
+                UserId = user.Id,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Workspaces.Add(workspace);
+            await _context.SaveChangesAsync();
+
+            var subscription = new Subscription
+            {
+                WorkspaceId = workspace.IdWorkspace,
+                PlanId = freePlan.IdPlan,
+                Status = "Active",
+                StartDate = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var usage = new WorkspaceUsage
+            {
+                WorkspaceId = workspace.IdWorkspace,
+                PdfExportsUsed = 0,
+                PdfExportsPeriodStart = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Subscriptions.Add(subscription);
+            _context.WorkspaceUsages.Add(usage);
+
+            await _context.SaveChangesAsync();
+
+            return (workspace, freePlan);
         }
 
         private static string HashToken(string token)
@@ -113,14 +163,6 @@ namespace PresupuestosAPI.Services
                 throw new InvalidOperationException("Ya existe un usuario registrado con este email.");
             }
 
-            var freePlan = await _context.Plans
-                .FirstOrDefaultAsync(p => p.Name == "Free" && p.IsActive);
-
-            if (freePlan == null)
-            {
-                throw new InvalidOperationException("El plan Free no está configurado.");
-            }
-
             var user = new ApplicationUser
             {
                 UserName = email,
@@ -136,37 +178,7 @@ namespace PresupuestosAPI.Services
                 throw new InvalidOperationException(errors);
             }
 
-            var workspace = new Workspace
-            {
-                Name = $"Workspace de {email}",
-                UserId = user.Id,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Workspaces.Add(workspace);
-            await _context.SaveChangesAsync();
-
-            var subscription = new Subscription
-            {
-                WorkspaceId = workspace.IdWorkspace,
-                PlanId = freePlan.IdPlan,
-                Status = "Active",
-                StartDate = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var usage = new WorkspaceUsage
-            {
-                WorkspaceId = workspace.IdWorkspace,
-                PdfExportsUsed = 0,
-                PdfExportsPeriodStart = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Subscriptions.Add(subscription);
-            _context.WorkspaceUsages.Add(usage);
-
-            await _context.SaveChangesAsync();
+            var (workspace, freePlan) = await CreateInitialSaasSetupAsync(user, email);
 
             var accessToken = GenerateAccessToken(user, workspace.IdWorkspace);
             var refreshToken = await CreateRefreshTokenAsync(user);
@@ -182,6 +194,130 @@ namespace PresupuestosAPI.Services
                     Email = email,
                     WorkspaceId = workspace.IdWorkspace,
                     PlanName = freePlan.Name
+                },
+                RefreshToken = refreshToken
+            };
+        }
+
+        public async Task<AuthResultDto> GoogleLoginAsync(GoogleLoginRequestDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(_googleAuthSettings.ClientId))
+            {
+                throw new InvalidOperationException("Google ClientId no está configurado.");
+            }
+
+            var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _googleAuthSettings.ClientId }
+            };
+
+            GoogleJsonWebSignature.Payload payload;
+
+            try
+            {
+                payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken, validationSettings);
+            }
+            catch
+            {
+                throw new UnauthorizedAccessException("Token de Google inválido.");
+            }
+
+            if (!payload.EmailVerified)
+            {
+                throw new UnauthorizedAccessException("El email de Google no está verificado.");
+            }
+
+            var email = payload.Email.Trim().ToLower();
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var user = await _userManager.FindByLoginAsync("Google", payload.Subject);
+
+            if (user == null)
+            {
+                user = await _userManager.FindByEmailAsync(email);
+            }
+
+            Workspace workspace;
+            Plan plan;
+
+            if (user == null)
+            {
+                user = new ApplicationUser
+                {
+                    UserName = email,
+                    Email = email,
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var createResult = await _userManager.CreateAsync(user);
+
+                if (!createResult.Succeeded)
+                {
+                    var errors = string.Join(" | ", createResult.Errors.Select(e => e.Description));
+                    throw new InvalidOperationException(errors);
+                }
+
+                var loginInfo = new UserLoginInfo("Google", payload.Subject, "Google");
+                var addLoginResult = await _userManager.AddLoginAsync(user, loginInfo);
+
+                if (!addLoginResult.Succeeded)
+                {
+                    var errors = string.Join(" | ", addLoginResult.Errors.Select(e => e.Description));
+                    throw new InvalidOperationException(errors);
+                }
+
+                var setup = await CreateInitialSaasSetupAsync(user, email);
+                workspace = setup.Workspace;
+                plan = setup.Plan;
+            }
+            else
+            {
+                var existingGoogleLogin = await _userManager.FindByLoginAsync("Google", payload.Subject);
+
+                if (existingGoogleLogin == null)
+                {
+                    var loginInfo = new UserLoginInfo("Google", payload.Subject, "Google");
+                    var addLoginResult = await _userManager.AddLoginAsync(user, loginInfo);
+
+                    if (!addLoginResult.Succeeded)
+                    {
+                        var errors = string.Join(" | ", addLoginResult.Errors.Select(e => e.Description));
+                        throw new InvalidOperationException(errors);
+                    }
+                }
+
+                workspace = await _context.Workspaces
+                    .FirstOrDefaultAsync(w => w.UserId == user.Id)
+                    ?? throw new InvalidOperationException("El usuario no tiene un workspace asociado.");
+
+                var subscription = await _context.Subscriptions
+                    .Include(s => s.Plan)
+                    .FirstOrDefaultAsync(s => s.WorkspaceId == workspace.IdWorkspace && s.Status == "Active");
+
+                if (subscription == null || subscription.Plan == null)
+                {
+                    throw new InvalidOperationException("El usuario no tiene una suscripción activa.");
+                }
+
+                plan = subscription.Plan;
+            }
+
+            var accessToken = GenerateAccessToken(user, workspace.IdWorkspace);
+            var refreshToken = await CreateRefreshTokenAsync(user);
+
+            await transaction.CommitAsync();
+
+            return new AuthResultDto
+            {
+                Response = new AuthResponseDto
+                {
+                    AccessToken = accessToken,
+                    AccessTokenExpiresAt = GetAccessTokenExpiration(),
+                    Email = user.Email ?? email,
+                    WorkspaceId = workspace.IdWorkspace,
+                    PlanName = plan.Name
                 },
                 RefreshToken = refreshToken
             };

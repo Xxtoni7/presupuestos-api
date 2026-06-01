@@ -59,6 +59,28 @@ namespace PresupuestosAPI.Controllers
             }
         }
 
+        [HttpPost("google-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequestDto dto)
+        {
+            try
+            {
+                var result = await _authService.GoogleLoginAsync(dto);
+
+                SetRefreshTokenCookie(result.RefreshToken);
+
+                return Ok(result.Response);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("login")]
         [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
