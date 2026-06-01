@@ -10,11 +10,6 @@ namespace PresupuestosAPI.Data
             using var scope = serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            if (await context.Plans.AnyAsync())
-            {
-                return;
-            }
-
             var plans = new List<Plan>
             {
                 new Plan
@@ -32,7 +27,7 @@ namespace PresupuestosAPI.Data
                 {
                     Name = "Pro",
                     Description = "Plan para profesionales y negocios chicos.",
-                    Price = 14999,
+                    Price = 10000,
                     MaxCompanies = 5,
                     MaxPresupuestos = 50,
                     MaxPdfExports = 70,
@@ -43,7 +38,7 @@ namespace PresupuestosAPI.Data
                 {
                     Name = "Business",
                     Description = "Plan para negocios con mayor volumen de trabajo.",
-                    Price = 20900,
+                    Price = 17000,
                     MaxCompanies = -1,
                     MaxPresupuestos = -1,
                     MaxPdfExports = -1,
@@ -52,8 +47,67 @@ namespace PresupuestosAPI.Data
                 }
             };
 
-            context.Plans.AddRange(plans);
-            await context.SaveChangesAsync();
+            var hasChanges = false;
+
+            foreach (var plan in plans)
+            {
+                var existingPlan = await context.Plans
+                    .FirstOrDefaultAsync(p => p.Name == plan.Name);
+
+                if (existingPlan == null)
+                {
+                    context.Plans.Add(plan);
+                    hasChanges = true;
+                    continue;
+                }
+
+                if (existingPlan.Description != plan.Description)
+                {
+                    existingPlan.Description = plan.Description;
+                    hasChanges = true;
+                }
+
+                if (existingPlan.Price != plan.Price)
+                {
+                    existingPlan.Price = plan.Price;
+                    hasChanges = true;
+                }
+
+                if (existingPlan.MaxCompanies != plan.MaxCompanies)
+                {
+                    existingPlan.MaxCompanies = plan.MaxCompanies;
+                    hasChanges = true;
+                }
+
+                if (existingPlan.MaxPresupuestos != plan.MaxPresupuestos)
+                {
+                    existingPlan.MaxPresupuestos = plan.MaxPresupuestos;
+                    hasChanges = true;
+                }
+
+                if (existingPlan.MaxPdfExports != plan.MaxPdfExports)
+                {
+                    existingPlan.MaxPdfExports = plan.MaxPdfExports;
+                    hasChanges = true;
+                }
+
+                if (existingPlan.PdfExportLimitPeriod != plan.PdfExportLimitPeriod)
+                {
+                    existingPlan.PdfExportLimitPeriod = plan.PdfExportLimitPeriod;
+                    hasChanges = true;
+                }
+
+                if (existingPlan.IsActive != plan.IsActive)
+                {
+                    existingPlan.IsActive = plan.IsActive;
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges)
+            {
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
