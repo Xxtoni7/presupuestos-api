@@ -93,10 +93,12 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings.Issuer,
         ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
+            Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+        ClockSkew = TimeSpan.Zero
     };
 });
 
+builder.Services.AddAuthorization();
 
 //Registrar los servicios de la aplicación
 builder.Services.AddScoped<CompanyService>();
@@ -110,16 +112,26 @@ builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<PlanLimitService>();
 
+//Configurar CORS
+var allowedOrigins = builder.Configuration
+    .GetSection("AllowedOrigins")
+    .Get<string[]>() ?? Array.Empty<string>();
+
+if (allowedOrigins.Length == 0)
+{
+    throw new InvalidOperationException("AllowedOrigins is not configured.");
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
-
 
 var app = builder.Build();
 
