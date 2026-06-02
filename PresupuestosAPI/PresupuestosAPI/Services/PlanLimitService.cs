@@ -2,6 +2,7 @@
 using PresupuestosAPI.Data;
 using PresupuestosAPI.Exceptions;
 using PresupuestosAPI.Models;
+using PresupuestosAPI.DTOs.Plan;
 
 namespace PresupuestosAPI.Services
 {
@@ -14,6 +15,20 @@ namespace PresupuestosAPI.Services
         {
             _context = context;
             _currentUserService = currentUserService;
+        }
+
+        private static (DateTime PeriodStart, DateTime PeriodEnd) GetCurrentMonthlyPeriod(DateTime subscriptionStartDate, DateTime now)
+        {
+            var periodStart = subscriptionStartDate;
+            var periodEnd = periodStart.AddMonths(1);
+
+            while (periodEnd <= now)
+            {
+                periodStart = periodEnd;
+                periodEnd = periodStart.AddMonths(1);
+            }
+
+            return (periodStart, periodEnd);
         }
 
         public async Task EnsureCanCreateCompanyAsync()
@@ -135,14 +150,14 @@ namespace PresupuestosAPI.Services
             if (plan.PdfExportLimitPeriod == "Monthly")
             {
                 var now = DateTime.UtcNow;
-                var periodStart = new DateTime(now.Year, now.Month, 1);
-                var periodEnd = periodStart.AddMonths(1);
+                var currentPeriod = GetCurrentMonthlyPeriod(subscription.StartDate, now);
 
-                if (usage.PdfExportsPeriodStart < periodStart)
+                if (usage.PdfExportsPeriodStart < currentPeriod.PeriodStart ||
+                    usage.PdfExportsPeriodEnd != currentPeriod.PeriodEnd)
                 {
                     usage.PdfExportsUsed = 0;
-                    usage.PdfExportsPeriodStart = periodStart;
-                    usage.PdfExportsPeriodEnd = periodEnd;
+                    usage.PdfExportsPeriodStart = currentPeriod.PeriodStart;
+                    usage.PdfExportsPeriodEnd = currentPeriod.PeriodEnd;
                     usage.UpdatedAt = DateTime.UtcNow;
                 }
             }
@@ -156,6 +171,82 @@ namespace PresupuestosAPI.Services
             usage.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<CurrentPlanResponseDto> GetCurrentPlanUsageAsync()
+        {
+            var workspaceId = _currentUserService.GetWorkspaceId();
+
+            var subscription = await _context.Subscriptions
+                .Include(s => s.Plan)
+                .FirstOrDefaultAsync(s =>
+                    s.WorkspaceId == workspaceId &&
+                    s.Status == "Active");
+
+            if (subscription == null || subscription.Plan == null)
+            {
+                throw new InvalidOperationException("No se encontró una suscripción activa.");
+            }
+
+            var plan = subscription.Plan;
+
+            var companiesUsed = await _context.Companies
+                .CountAsync(c => c.WorkspaceId == workspaceId);
+
+            var presupuestosUsed = await _context.Presupuestos
+                .Include(p => p.Company)
+                .CountAsync(p =>
+                    p.Company != null &&
+                    p.Company.WorkspaceId == workspaceId);
+
+            var usage = await _context.WorkspaceUsages
+                .FirstOrDefaultAsync(u => u.WorkspaceId == workspaceId);
+
+            if (usage == null)
+            {
+                usage = new WorkspaceUsage
+                {
+                    WorkspaceId = workspaceId,
+                    PdfExportsUsed = 0,
+                    PdfExportsPeriodStart = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.WorkspaceUsages.Add(usage);
+                await _context.SaveChangesAsync();
+            }
+
+            if (plan.PdfExportLimitPeriod == "Monthly")
+            {
+                var now = DateTime.UtcNow;
+                var currentPeriod = GetCurrentMonthlyPeriod(subscription.StartDate, now);
+
+                if (usage.PdfExportsPeriodStart < currentPeriod.PeriodStart ||
+                    usage.PdfExportsPeriodEnd != currentPeriod.PeriodEnd)
+                {
+                    usage.PdfExportsUsed = 0;
+                    usage.PdfExportsPeriodStart = currentPeriod.PeriodStart;
+                    usage.PdfExportsPeriodEnd = currentPeriod.PeriodEnd;
+                    usage.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync();
+                }
+            }
+
+            return new CurrentPlanResponseDto
+            {
+                PlanName = plan.Name,
+                Price = plan.Price,
+                CompaniesUsed = companiesUsed,
+                MaxCompanies = plan.MaxCompanies,
+                PresupuestosUsed = presupuestosUsed,
+                MaxPresupuestos = plan.MaxPresupuestos,
+                PdfExportsUsed = usage.PdfExportsUsed,
+                MaxPdfExports = plan.MaxPdfExports,
+                PdfExportLimitPeriod = plan.PdfExportLimitPeriod,
+                PdfExportsPeriodStart = usage.PdfExportsPeriodStart,
+                PdfExportsPeriodEnd = usage.PdfExportsPeriodEnd
+            };
         }
     }
 }
