@@ -111,6 +111,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<PlanLimitService>();
+builder.Services.AddScoped<PlanService>();
 
 //Configurar CORS
 var allowedOrigins = builder.Configuration

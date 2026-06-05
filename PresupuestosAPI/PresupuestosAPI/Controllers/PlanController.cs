@@ -10,10 +10,12 @@ namespace PresupuestosAPI.Controllers
     public class PlanController : ControllerBase
     {
         private readonly PlanLimitService _planLimitService;
+        private readonly PlanService _planService;
 
-        public PlanController(PlanLimitService planLimitService)
+        public PlanController(PlanLimitService planLimitService, PlanService planService)
         {
             _planLimitService = planLimitService;
+            _planService = planService;
         }
 
         [HttpGet("current")]
@@ -29,6 +31,14 @@ namespace PresupuestosAPI.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [HttpGet("available")]
+        public async Task<IActionResult> GetAvailablePlans()
+        {
+            var plans = await _planService.GetAvailablePlansAsync();
+
+            return Ok(plans);
         }
     }
 }
