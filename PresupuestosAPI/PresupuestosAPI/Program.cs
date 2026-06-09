@@ -112,6 +112,7 @@ builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<PlanLimitService>();
 builder.Services.AddScoped<PlanService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 //Configurar CORS
 var allowedOrigins = builder.Configuration
