@@ -6,6 +6,7 @@ using Microsoft.OpenApi;
 using PresupuestosAPI.Data;
 using PresupuestosAPI.Models;
 using PresupuestosAPI.Services;
+using PresupuestosAPI.Services.Email;
 using PresupuestosAPI.Settings;
 using System.Text;
 
@@ -46,6 +47,18 @@ builder.Services.Configure<CloudinarySettings>(
 builder.Services.Configure<GoogleAuthSettings>(
     builder.Configuration.GetSection("GoogleAuthSettings")
 );
+
+//Configurar Email
+builder.Services.Configure<EmailSettings>(
+    builder.Configuration.GetSection("EmailSettings"));
+
+builder.Services.Configure<FrontendSettings>(
+    builder.Configuration.GetSection("FrontendSettings"));
+
+builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
+{
+    options.TokenLifespan = TimeSpan.FromHours(1);
+});
 
 //Configurar la cadena de conexión a la base de datos
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -113,6 +126,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<PlanLimitService>();
 builder.Services.AddScoped<PlanService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 
 //Configurar CORS
 var allowedOrigins = builder.Configuration

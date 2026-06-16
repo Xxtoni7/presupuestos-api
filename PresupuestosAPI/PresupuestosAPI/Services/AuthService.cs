@@ -1,16 +1,19 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Google.Apis.Auth;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using PresupuestosAPI.Data;
-using PresupuestosAPI.Models;
-using PresupuestosAPI.Settings;
 using Microsoft.IdentityModel.Tokens;
+using PresupuestosAPI.Data;
+using PresupuestosAPI.DTOs.Auth;
+using PresupuestosAPI.Models;
+using PresupuestosAPI.Services.Email;
+using PresupuestosAPI.Settings;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.EntityFrameworkCore;
-using PresupuestosAPI.DTOs.Auth;
-using Google.Apis.Auth;
 
 namespace PresupuestosAPI.Services
 {
@@ -22,6 +25,9 @@ namespace PresupuestosAPI.Services
         private readonly JwtSettings _jwtSettings;
         private readonly CurrentUserService _currentUserService;
         private readonly GoogleAuthSettings _googleAuthSettings;
+        private readonly FrontendSettings _frontendSettings;
+        private readonly IEmailSender _emailSender;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             UserManager<ApplicationUser> userManager,
@@ -29,7 +35,10 @@ namespace PresupuestosAPI.Services
             AppDbContext context,
             IOptions<JwtSettings> jwtOptions,
             IOptions<GoogleAuthSettings> googleAuthOptions,
-            CurrentUserService currentUserService
+            IOptions<FrontendSettings> frontendOptions,
+            CurrentUserService currentUserService,
+            IEmailSender emailSender,
+            ILogger<AuthService> logger
             )
         {
             _userManager = userManager;
@@ -38,6 +47,9 @@ namespace PresupuestosAPI.Services
             _jwtSettings = jwtOptions.Value;
             _googleAuthSettings = googleAuthOptions.Value;
             _currentUserService = currentUserService;
+            _frontendSettings = frontendOptions.Value;
+            _emailSender = emailSender;
+            _logger = logger;
         }
 
         private string GenerateAccessToken(ApplicationUser user, int workspaceId)
@@ -124,6 +136,45 @@ namespace PresupuestosAPI.Services
             var tokenBytes = Encoding.UTF8.GetBytes(token);
             var hashBytes = SHA256.HashData(tokenBytes);
             return Convert.ToBase64String(hashBytes);
+        }
+
+        private static string EncodeToken(string token)
+        {
+            return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        }
+
+        private static string DecodeToken(string encodedToken)
+        {
+            var decodedBytes = WebEncoders.Base64UrlDecode(encodedToken);
+
+            return Encoding.UTF8.GetString(decodedBytes);
+        }
+
+        private static string BuildPasswordResetEmailBody(string resetPasswordUrl)
+        {
+            var safeResetPasswordUrl = WebUtility.HtmlEncode(resetPasswordUrl);
+
+            return $@"
+            <div style=""font-family: Arial, sans-serif; color: #111827; line-height: 1.5;"">
+                <h2>Recuperá tu contraseña</h2>
+
+                <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong>MT Presupuestos</strong>.</p>
+
+                <p>Para crear una nueva contraseña, hacé click en el siguiente botón:</p>
+
+                <p>
+                    <a href=""{safeResetPasswordUrl}""
+                       style=""display:inline-block; padding:12px 18px; background:#111827; color:#ffffff; text-decoration:none; border-radius:8px;"">
+                        Restablecer contraseña
+                    </a>
+                </p>
+
+                <p>Si no solicitaste este cambio, podés ignorar este email.</p>
+
+                <p style=""font-size: 13px; color: #6b7280;"">
+                    MT Presupuestos - Presupuestos profesionales en minutos.
+                </p>
+            </div>";
         }
 
         private async Task<string> CreateRefreshTokenAsync(ApplicationUser user)
@@ -377,6 +428,102 @@ namespace PresupuestosAPI.Services
                 },
                 RefreshToken = refreshToken
             };
+        }
+
+        public async Task ForgotPasswordAsync(ForgotPasswordRequestDto dto)
+        {
+            var email = dto.Email.Trim().ToLower();
+
+            var user = await _userManager.FindByEmailAsync(email);
+
+            if (user == null)
+            {
+                return;
+            }
+
+            var hasPassword = await _userManager.HasPasswordAsync(user);
+
+            if (!hasPassword)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_frontendSettings.BaseUrl))
+            {
+                _logger.LogError("FrontendSettings:BaseUrl no está configurado.");
+                return;
+            }
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var encodedToken = EncodeToken(token);
+
+            var resetPasswordUrl = QueryHelpers.AddQueryString(
+                $"{_frontendSettings.BaseUrl.TrimEnd('/')}/reset-password",
+                new Dictionary<string, string?>
+                {
+                    ["userId"] = user.Id,
+                    ["token"] = encodedToken
+                }
+            );
+
+            var subject = "Recuperá tu contraseña - MT Presupuestos";
+            var htmlBody = BuildPasswordResetEmailBody(resetPasswordUrl);
+
+            try
+            {
+                await _emailSender.SendEmailAsync(email, subject, htmlBody);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al enviar email de recuperación de contraseña.");
+            }
+        }
+
+        public async Task ResetPasswordAsync(ResetPasswordRequestDto dto)
+        {
+            if (dto.NewPassword != dto.ConfirmNewPassword)
+            {
+                throw new InvalidOperationException("Las contraseñas no coinciden.");
+            }
+
+            var user = await _userManager.FindByIdAsync(dto.UserId);
+
+            if (user == null)
+            {
+                throw new InvalidOperationException("No pudimos restablecer la contraseña. El link es inválido o expiró.");
+            }
+
+            string decodedToken;
+
+            try
+            {
+                decodedToken = DecodeToken(dto.Token);
+            }
+            catch
+            {
+                throw new InvalidOperationException("No pudimos restablecer la contraseña. El link es inválido o expiró.");
+            }
+
+            var result = await _userManager.ResetPasswordAsync(
+                user,
+                decodedToken,
+                dto.NewPassword
+            );
+
+            if (!result.Succeeded)
+            {
+                var hasInvalidToken = result.Errors.Any(e =>
+                    e.Code.Contains("InvalidToken", StringComparison.OrdinalIgnoreCase));
+
+                if (hasInvalidToken)
+                {
+                    throw new InvalidOperationException("No pudimos restablecer la contraseña. El link es inválido o expiró.");
+                }
+
+                var errors = string.Join(" | ", result.Errors.Select(e => e.Description));
+
+                throw new InvalidOperationException(errors);
+            }
         }
 
         public async Task<CurrentUserResponseDto> GetCurrentUserAsync()

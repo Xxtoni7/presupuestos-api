@@ -105,6 +105,40 @@ namespace PresupuestosAPI.Controllers
             }
         }
 
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto dto)
+        {
+            await _authService.ForgotPasswordAsync(dto);
+
+            return Ok(new
+            {
+                message = "Si el email existe, enviaremos instrucciones para recuperar la contraseña."
+            });
+        }
+
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto dto)
+        {
+            try
+            {
+                await _authService.ResetPasswordAsync(dto);
+
+                return Ok(new
+                {
+                    message = "Contraseña actualizada correctamente."
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
         [HttpGet("me")]
         [Authorize]
         public async Task<IActionResult> Me()
