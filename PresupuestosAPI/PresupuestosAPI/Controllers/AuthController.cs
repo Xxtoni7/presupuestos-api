@@ -113,7 +113,7 @@ namespace PresupuestosAPI.Controllers
 
             return Ok(new
             {
-                message = "Si el email existe, enviaremos instrucciones para recuperar la contraseña."
+                message = "Solicitud enviada. Revisá tu email para continuar."
             });
         }
 
