@@ -49,16 +49,51 @@ namespace PresupuestosAPI.Controllers
         {
             try
             {
-                var result = await _authService.RegisterAsync(dto);
+                await _authService.RegisterAsync(dto);
 
-                SetRefreshTokenCookie(result.RefreshToken);
-
-                return Ok(result.Response);
+                return Ok(new
+                {
+                    message = "Cuenta creada correctamente. Revisá tu email para activar tu cuenta antes de iniciar sesión."
+                });
             }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [HttpGet("confirm-email")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ConfirmEmail([FromQuery] string userId, [FromQuery] string token)
+        {
+            try
+            {
+                await _authService.ConfirmEmailAsync(userId, token);
+
+                return Ok(new
+                {
+                    message = "Email verificado correctamente. Ya podés iniciar sesión."
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("resend-email-confirmation")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendEmailConfirmation([FromBody] ResendEmailConfirmationRequestDto dto)
+        {
+            await _authService.ResendEmailConfirmationAsync(dto);
+
+            return Ok(new
+            {
+                message = "Si corresponde, te enviamos un nuevo email de verificación."
+            });
         }
 
         [HttpPost("google-login")]

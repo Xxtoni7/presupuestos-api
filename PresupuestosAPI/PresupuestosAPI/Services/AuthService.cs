@@ -177,6 +177,71 @@ namespace PresupuestosAPI.Services
             </div>";
         }
 
+        private static string BuildEmailConfirmationBody(string confirmEmailUrl)
+        {
+            var safeConfirmEmailUrl = WebUtility.HtmlEncode(confirmEmailUrl);
+
+            return $@"
+            <div style=""font-family: Arial, sans-serif; color: #111827; line-height: 1.5;"">
+                <h2>Verificá tu email</h2>
+
+                <p>Gracias por crear tu cuenta en <strong>MT Presupuestos</strong>.</p>
+
+                <p>Para activar tu cuenta y poder iniciar sesión, confirmá tu email haciendo click en el siguiente botón:</p>
+
+                <p>
+                    <a href=""{safeConfirmEmailUrl}""
+                       style=""display:inline-block; padding:12px 18px; background:#111827; color:#ffffff; text-decoration:none; border-radius:8px;"">
+                        Verificar email
+                    </a>
+                </p>
+
+                <p>Si no creaste una cuenta en MT Presupuestos, podés ignorar este email.</p>
+
+                <p style=""font-size: 13px; color: #6b7280;"">
+                    MT Presupuestos - Presupuestos profesionales en minutos.
+                </p>
+            </div>";
+        }
+
+        private async Task SendEmailConfirmationAsync(ApplicationUser user)
+        {
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_frontendSettings.BaseUrl))
+            {
+                _logger.LogError("FrontendSettings:BaseUrl no está configurado.");
+                return;
+            }
+
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var encodedToken = EncodeToken(token);
+
+            var confirmEmailUrl = QueryHelpers.AddQueryString(
+                $"{_frontendSettings.BaseUrl.TrimEnd('/')}/confirm-email",
+                new Dictionary<string, string?>
+                {
+                    ["userId"] = user.Id,
+                    ["token"] = encodedToken
+                }
+            );
+
+            var subject = "Verificá tu email - MT Presupuestos";
+            var htmlBody = BuildEmailConfirmationBody(confirmEmailUrl);
+
+            try
+            {
+                await _emailSender.SendEmailAsync(user.Email, subject, htmlBody);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al enviar email de verificación.");
+            }
+        }
+
         private async Task<string> CreateRefreshTokenAsync(ApplicationUser user)
         {
             var refreshToken = GenerateRefreshToken();
@@ -196,7 +261,7 @@ namespace PresupuestosAPI.Services
             return refreshToken;
         }
 
-        public async Task<AuthResultDto> RegisterAsync(RegisterRequestDto dto)
+        public async Task RegisterAsync(RegisterRequestDto dto)
         {
             if (dto.Password != dto.ConfirmPassword)
             {
@@ -211,13 +276,14 @@ namespace PresupuestosAPI.Services
 
             if (existingUser != null)
             {
-                throw new InvalidOperationException("Ya existe un usuario registrado con este email.");
+                throw new InvalidOperationException("Ya existe una cuenta registrada con este email.");
             }
 
             var user = new ApplicationUser
             {
                 UserName = email,
                 Email = email,
+                EmailConfirmed = false,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -229,25 +295,70 @@ namespace PresupuestosAPI.Services
                 throw new InvalidOperationException(errors);
             }
 
-            var (workspace, freePlan) = await CreateInitialSaasSetupAsync(user, email);
-
-            var accessToken = GenerateAccessToken(user, workspace.IdWorkspace);
-            var refreshToken = await CreateRefreshTokenAsync(user);
+            await CreateInitialSaasSetupAsync(user, email);
 
             await transaction.CommitAsync();
 
-            return new AuthResultDto
+            await SendEmailConfirmationAsync(user);
+        }
+
+        public async Task ConfirmEmailAsync(string userId, string token)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
             {
-                Response = new AuthResponseDto
-                {
-                    AccessToken = accessToken,
-                    AccessTokenExpiresAt = GetAccessTokenExpiration(),
-                    Email = email,
-                    WorkspaceId = workspace.IdWorkspace,
-                    PlanName = freePlan.Name
-                },
-                RefreshToken = refreshToken
-            };
+                throw new InvalidOperationException("No pudimos verificar tu email. El link es inválido o expiró.");
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+
+            if (user == null)
+            {
+                throw new InvalidOperationException("No pudimos verificar tu email. El link es inválido o expiró.");
+            }
+
+            string decodedToken;
+
+            try
+            {
+                decodedToken = DecodeToken(token);
+            }
+            catch
+            {
+                throw new InvalidOperationException("No pudimos verificar tu email. El link es inválido o expiró.");
+            }
+
+            var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
+
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException("No pudimos verificar tu email. El link es inválido o expiró.");
+            }
+        }
+
+        public async Task ResendEmailConfirmationAsync(ResendEmailConfirmationRequestDto dto)
+        {
+            var email = dto.Email.Trim().ToLower();
+
+            var user = await _userManager.FindByEmailAsync(email);
+
+            if (user == null)
+            {
+                return;
+            }
+
+            if (user.EmailConfirmed)
+            {
+                return;
+            }
+
+            var hasPassword = await _userManager.HasPasswordAsync(user);
+
+            if (!hasPassword)
+            {
+                return;
+            }
+
+            await SendEmailConfirmationAsync(user);
         }
 
         public async Task<AuthResultDto> GoogleLoginAsync(GoogleLoginRequestDto dto)
@@ -339,6 +450,19 @@ namespace PresupuestosAPI.Services
                     }
                 }
 
+                if (!user.EmailConfirmed)
+                {
+                    user.EmailConfirmed = true;
+
+                    var updateResult = await _userManager.UpdateAsync(user);
+
+                    if (!updateResult.Succeeded)
+                    {
+                        var errors = string.Join(" | ", updateResult.Errors.Select(e => e.Description));
+                        throw new InvalidOperationException(errors);
+                    }
+                }
+
                 workspace = await _context.Workspaces
                     .FirstOrDefaultAsync(w => w.UserId == user.Id)
                     ?? throw new InvalidOperationException("El usuario no tiene un workspace asociado.");
@@ -394,6 +518,11 @@ namespace PresupuestosAPI.Services
             if (!signInResult.Succeeded)
             {
                 throw new UnauthorizedAccessException("Email o contraseña incorrectos.");
+            }
+
+            if (!user.EmailConfirmed)
+            {
+                throw new UnauthorizedAccessException("Tenés que verificar tu email antes de iniciar sesión.");
             }
 
             var workspace = await _context.Workspaces
