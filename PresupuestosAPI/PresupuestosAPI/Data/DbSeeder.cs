@@ -26,7 +26,7 @@ namespace PresupuestosAPI.Data
                 new Plan
                 {
                     Name = "Pro",
-                    Description = "Plan para profesionales y negocios chicos.",
+                    Description = "Plan para profesionales y negocios con poco volumen de trabajo.",
                     Price = 10000,
                     MaxCompanies = 5,
                     MaxPresupuestos = 50,
