@@ -34,6 +34,7 @@ namespace PresupuestosAPI.Controllers
         }
 
         [HttpGet("available")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAvailablePlans()
         {
             var plans = await _planService.GetAvailablePlansAsync();
