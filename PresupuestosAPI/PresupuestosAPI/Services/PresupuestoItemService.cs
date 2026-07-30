@@ -59,13 +59,13 @@ namespace PresupuestosAPI.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<PresupuestoItemResponseDto>> GetItemsByPresupuestoIdAsync(int presupuestoId)
+        public async Task<List<PresupuestoItemResponseDto>?> GetItemsByPresupuestoIdAsync(int presupuestoId)
         {
             var presupuesto = await GetOwnedPresupuestoAsync(presupuestoId);
 
             if (presupuesto == null)
             {
-                return new List<PresupuestoItemResponseDto>();
+                return null;
             }
 
             var items = await _context.PresupuestoItems

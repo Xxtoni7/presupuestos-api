@@ -20,7 +20,7 @@ namespace PresupuestosAPI.Controllers
         public async Task<IActionResult> GetItemByPresupuestoId(int presupuestoId)
         {
             var items = await _itemService.GetItemsByPresupuestoIdAsync(presupuestoId);
-            if (!items.Any())
+            if (items == null)
             {
                 return NotFound();
             }
