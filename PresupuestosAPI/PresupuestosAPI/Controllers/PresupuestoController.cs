@@ -1,18 +1,42 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using PresupuestosAPI.Services;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PresupuestosAPI.DTOs.Presupuesto;
+using PresupuestosAPI.Services;
+using PresupuestosAPI.Exceptions;
 
 namespace PresupuestosAPI.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class PresupuestoController : ControllerBase
     {
         private readonly PresupuestoService _presupuestoService;
+        private readonly PlanLimitService _planLimitService;
 
-        public PresupuestoController(PresupuestoService presupuestoService)
+        public PresupuestoController(PresupuestoService presupuestoService, PlanLimitService planLimitService)
         {
             _presupuestoService = presupuestoService;
+            _planLimitService = planLimitService;
+        }
+
+        [HttpPost("{id}/export-pdf")]
+        public async Task<IActionResult> ExportPdf(int id)
+        {
+            try
+            {
+                await _planLimitService.ConsumePdfExportAsync(id);
+
+                return Ok(new { message = "Exportación PDF autorizada." });
+            }
+            catch (PlanLimitExceededException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return NotFound(new { message = "Presupuesto no encontrado." });
+            }
         }
 
         [HttpGet]
@@ -56,12 +80,24 @@ namespace PresupuestosAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePresupuesto([FromBody] CreatePresupuestoDto dto)
         {
-            var createdPresupuesto = await _presupuestoService.CreatePresupuestoAsync(dto);
-            return CreatedAtAction(
-                nameof(GetPresupuestoById),
-                new { id = createdPresupuesto.IdPresupuesto },
-                createdPresupuesto
-            );
+            try
+            {
+                var createdPresupuesto = await _presupuestoService.CreatePresupuestoAsync(dto);
+
+                return CreatedAtAction(
+                    nameof(GetPresupuestoById),
+                    new { id = createdPresupuesto.IdPresupuesto },
+                    createdPresupuesto
+                );
+            }
+            catch (PlanLimitExceededException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return NotFound(new { message = "Empresa no encontrada." });
+            }
         }
 
         [HttpPut("{id}")]
